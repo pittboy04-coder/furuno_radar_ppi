@@ -4,6 +4,7 @@ from typing import Optional, List
 from .widgets import Panel, Button, Slider, Label, DropDown, COLORS
 from ..core.simulation import Simulation
 from ..scenarios.scenario_manager import ScenarioManager
+from ..data_import import CsvPlayer
 
 class ControlPanel:
     """Main control panel containing all radar controls."""
@@ -12,6 +13,7 @@ class ControlPanel:
         self.rect = pygame.Rect(x, y, width, height)
         self.simulation: Optional[Simulation] = None
         self.scenario_manager: Optional[ScenarioManager] = None
+        self.csv_player: Optional[CsvPlayer] = None
 
         # Create panels
         self._create_panels()
@@ -109,7 +111,7 @@ class ControlPanel:
         y_offset += 130
 
         # Data Export panel
-        self.export_panel = Panel(10, y_offset, panel_width, 145, "DATA EXPORT")
+        self.export_panel = Panel(10, y_offset, panel_width, 175, "DATA EXPORT")
         btn_width = (panel_width - 50) // 3
         self.record_button = Button(
             15, 35, btn_width, 28, "RECORD",
@@ -123,14 +125,19 @@ class ControlPanel:
             25 + btn_width * 2, 35, btn_width, 28, "COAST",
             callback=self._on_coastline_toggle
         )
-        self.record_label = Label(20, 70, "Not recording", 18)
-        self.file_label = Label(20, 90, "", 16)
+        self.csv_button = Button(
+            15, 68, btn_width, 28, "LOAD CSV",
+            callback=self._on_load_csv
+        )
+        self.record_label = Label(20, 100, "Not recording", 18)
+        self.file_label = Label(20, 120, "", 16)
         self.export_panel.add_widget(self.record_button)
         self.export_panel.add_widget(self.save_button)
         self.export_panel.add_widget(self.coastline_button)
+        self.export_panel.add_widget(self.csv_button)
         self.export_panel.add_widget(self.record_label)
         self.export_panel.add_widget(self.file_label)
-        y_offset += 155
+        y_offset += 185
 
         # Info panel
         self.info_panel = Panel(10, y_offset, panel_width, 80, "INFO")
@@ -253,6 +260,31 @@ class ControlPanel:
                 import os
                 filename = os.path.basename(filepath)
                 self.file_label.set_text(f"Saved: {filename}")
+
+    def _on_load_csv(self) -> None:
+        """Handle LOAD CSV / STOP CSV button."""
+        if self.csv_player and self.csv_player.active:
+            # Stop playback
+            self.csv_player.stop()
+            self.csv_player = None
+            self.csv_button.text = "LOAD CSV"
+            self.file_label.set_text("CSV stopped")
+        else:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            folder = filedialog.askdirectory(title="Select CSV Data Folder")
+            root.destroy()
+            if folder:
+                self.csv_player = CsvPlayer(folder)
+                if self.csv_player.active:
+                    self.csv_button.text = "STOP CSV"
+                    import os
+                    self.file_label.set_text(f"CSV: {os.path.basename(folder)}")
+                else:
+                    self.csv_player = None
+                    self.file_label.set_text("No CSV files found")
 
     def _on_coastline_toggle(self) -> None:
         """Handle coastline toggle button."""

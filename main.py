@@ -122,23 +122,29 @@ def main():
             # Pass events to control panel
             control_panel.handle_event(event)
 
-        # Update simulation
-        sim.update()
+        # CSV playback mode or normal simulation
+        if control_panel.csv_player and control_panel.csv_player.active:
+            sweep_pairs = control_panel.csv_player.get_next_sweeps()
+            for bearing, data in sweep_pairs:
+                ppi.draw_sweep_data(bearing, data)
+        else:
+            # Update simulation
+            sim.update()
 
-        # Get current radar state
-        current_bearing = sim.radar.get_current_bearing()
+            # Get current radar state
+            current_bearing = sim.radar.get_current_bearing()
 
-        # Update PPI display with new sweep data
-        if int(current_bearing) != int(last_bearing):
-            sweep_data = sim.get_radar_sweep_data(current_bearing)
-            ppi.draw_sweep_data(current_bearing, sweep_data)
+            # Update PPI display with new sweep data
+            if int(current_bearing) != int(last_bearing):
+                sweep_data = sim.get_radar_sweep_data(current_bearing)
+                ppi.draw_sweep_data(current_bearing, sweep_data)
 
-            # Update heading display
-            if sim.world.own_ship:
-                ppi.set_heading(sim.world.own_ship.course)
+                # Update heading display
+                if sim.world.own_ship:
+                    ppi.set_heading(sim.world.own_ship.course)
 
-        ppi.set_range(sim.radar.params.current_range_nm)
-        last_bearing = current_bearing
+            ppi.set_range(sim.radar.params.current_range_nm)
+            last_bearing = current_bearing
 
         # Render
         screen.fill((20, 20, 30))

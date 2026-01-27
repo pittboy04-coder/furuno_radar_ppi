@@ -36,6 +36,9 @@ class Coastline:
                         max_range: float, num_bins: int) -> List[float]:
         """Generate radar returns for the coastline at a given bearing.
 
+        Uses filled-polygon ray-casting with even-odd rule to produce
+        solid landmass returns matching real radar output.
+
         Args:
             own_x, own_y: Own ship position
             bearing: Current antenna bearing in degrees
@@ -50,56 +53,60 @@ class Coastline:
         bin_size = max_range / num_bins
         half_beam = beamwidth / 2
 
-        if len(self.points) < 2:
+        if len(self.points) < 3:
             return returns
 
-        # Check each coastline segment
-        for i in range(len(self.points) - 1):
-            p1 = self.points[i]
-            p2 = self.points[i + 1]
+        # Cast multiple rays across beamwidth for smooth edges
+        num_rays = 5
+        for ray_idx in range(num_rays):
+            offset = -half_beam + (2 * half_beam * ray_idx / (num_rays - 1)) if num_rays > 1 else 0
+            ray_bearing = bearing + offset
+            ray_weight = 1.0 - 0.3 * abs(offset) / (half_beam + 0.01)
 
-            # Find intersection of radar beam with this segment
-            intersections = self._beam_segment_intersections(
-                own_x, own_y, bearing, half_beam, max_range, p1, p2
-            )
+            # Find all intersections of this ray with polygon edges
+            hits = self._ray_polygon_intersections(own_x, own_y, ray_bearing, max_range)
+            hits.sort()
 
-            for dist, intensity in intersections:
-                if dist > 0 and dist < max_range:
-                    bin_idx = int(dist / bin_size)
-                    if 0 <= bin_idx < num_bins:
-                        # Spread the return across a few bins for realism
-                        spread = max(1, int(self.roughness * 5))
-                        for offset in range(-spread, spread + 1):
-                            idx = bin_idx + offset
-                            if 0 <= idx < num_bins:
-                                spread_factor = 1.0 - abs(offset) / (spread + 1)
-                                returns[idx] = max(returns[idx],
-                                                  intensity * self.reflectivity * spread_factor)
+            # Even-odd fill: between pairs of intersections, ray is inside land
+            i = 0
+            while i < len(hits):
+                enter_dist = hits[i]
+                if i + 1 < len(hits):
+                    exit_dist = hits[i + 1]
+                else:
+                    # Odd count — ray enters land and doesn't exit before max_range
+                    exit_dist = max_range
+                i += 2
+
+                start_bin = max(0, int(enter_dist / bin_size))
+                end_bin = min(num_bins, int(exit_dist / bin_size) + 1)
+
+                for b in range(start_bin, end_bin):
+                    # Strong return inside land, slight edge effect at boundaries
+                    if b == start_bin or b == end_bin - 1:
+                        intensity = self.reflectivity * 0.75 * ray_weight
+                    else:
+                        intensity = self.reflectivity * ray_weight
+                    returns[b] = max(returns[b], intensity)
 
         return returns
 
-    def _beam_segment_intersections(self, ox: float, oy: float,
-                                    bearing: float, half_beam: float,
-                                    max_range: float,
-                                    p1: CoastlinePoint, p2: CoastlinePoint
-                                    ) -> List[Tuple[float, float]]:
-        """Find where the radar beam intersects a coastline segment."""
-        intersections = []
+    def _ray_polygon_intersections(self, ox: float, oy: float,
+                                    bearing: float, max_range: float) -> List[float]:
+        """Find all distances where a ray intersects the polygon edges."""
+        ray_rad = math.radians(bearing)
+        dx = math.sin(ray_rad)
+        dy = math.cos(ray_rad)
 
-        # Sample multiple rays within the beam
-        for angle_offset in [-half_beam, -half_beam/2, 0, half_beam/2, half_beam]:
-            ray_bearing = bearing + angle_offset
-            ray_rad = math.radians(ray_bearing)
+        distances = []
+        n = len(self.points)
+        for i in range(n - 1):
+            p1 = self.points[i]
+            p2 = self.points[i + 1]
 
-            # Ray direction
-            dx = math.sin(ray_rad)
-            dy = math.cos(ray_rad)
-
-            # Line segment
             sx = p2.x - p1.x
             sy = p2.y - p1.y
 
-            # Solve for intersection
             denom = dx * sy - dy * sx
             if abs(denom) < 1e-10:
                 continue
@@ -107,14 +114,10 @@ class Coastline:
             t = ((p1.x - ox) * sy - (p1.y - oy) * sx) / denom
             u = ((p1.x - ox) * dy - (p1.y - oy) * dx) / denom
 
-            if t > 0 and 0 <= u <= 1:
-                dist = t
-                if dist < max_range:
-                    # Intensity based on angle to surface
-                    angle_factor = 1.0 - abs(angle_offset) / (half_beam + 1)
-                    intersections.append((dist, angle_factor))
+            if t > 0 and 0 <= u <= 1 and t <= max_range:
+                distances.append(t)
 
-        return intersections
+        return distances
 
     def is_point_on_land(self, x: float, y: float) -> bool:
         """Check if a point is on land (inside the coastline polygon)."""
