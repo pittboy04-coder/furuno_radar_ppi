@@ -109,21 +109,24 @@ class ControlPanel:
         y_offset += 130
 
         # Weather panel
-        self.weather_panel = Panel(10, y_offset, panel_width, 120, "WEATHER")
-        self.sea_state_dropdown = DropDown(
-            15, 35, panel_width - 30, 25,
-            ["Calm (0)", "Light (2)", "Moderate (4)", "Rough (6)", "Severe (8)"],
-            selected=1,
-            label="Sea State",
-            callback=self._on_sea_state_change
+        self._sea_state_names = ["Calm (0)", "Light (2)", "Moderate (4)", "Rough (6)", "Severe (8)"]
+        self._sea_state_values = [0, 2, 4, 6, 8]
+        self.weather_panel = Panel(10, y_offset, panel_width, 140, "WEATHER")
+        self.sea_state_slider = Slider(
+            15, 45, panel_width - 70, 20,
+            min_val=0.0, max_val=4.0, value=1.0,
+            label="SEA STATE",
+            callback=self._on_sea_state_slider
         )
+        self.sea_state_label = Label(20, 70, "Light (2)", 18)
         self.rain_rate_slider = Slider(
-            15, 85, panel_width - 70, 20,
+            15, 105, panel_width - 70, 20,
             min_val=0.0, max_val=50.0, value=0.0,
             label="RAIN mm/h",
             callback=self._on_rain_rate_change
         )
-        self.weather_panel.add_widget(self.sea_state_dropdown)
+        self.weather_panel.add_widget(self.sea_state_slider)
+        self.weather_panel.add_widget(self.sea_state_label)
         self.weather_panel.add_widget(self.rain_rate_slider)
         y_offset += 130
 
@@ -259,11 +262,14 @@ class ControlPanel:
         if self.simulation:
             self.simulation.set_time_scale(value)
 
-    def _on_sea_state_change(self, index: int, value: str) -> None:
-        """Handle sea state change."""
+    def _on_sea_state_slider(self, value: float) -> None:
+        """Handle sea state slider change."""
+        index = int(round(value))
+        index = max(0, min(index, len(self._sea_state_values) - 1))
+        self.sea_state_slider.value = float(index)
+        self.sea_state_label.set_text(self._sea_state_names[index])
         if self.simulation:
-            sea_states = [0, 2, 4, 6, 8]
-            self.simulation.weather.set_sea_state(sea_states[index])
+            self.simulation.weather.set_sea_state(self._sea_state_values[index])
 
     def _on_rain_rate_change(self, value: float) -> None:
         """Handle rain rate change."""
