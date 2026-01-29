@@ -5,12 +5,13 @@ import os
 import pygame
 from radar_sim.core.simulation import Simulation
 from radar_sim.visualization.ppi_display import PPIDisplay
+from radar_sim.visualization.scene_view import SceneView
 from radar_sim.ui.control_panel import ControlPanel
 from radar_sim.scenarios.scenario_manager import ScenarioManager
 from radar_sim.scenarios.presets import PRESET_SCENARIOS
 
 # Window settings
-WINDOW_WIDTH = 1000
+WINDOW_WIDTH = 1400
 WINDOW_HEIGHT = 900
 PPI_SIZE = 600
 FPS = 60
@@ -50,11 +51,16 @@ def main():
     ppi_y = (WINDOW_HEIGHT - PPI_SIZE) // 2
     ppi.set_ppi_offset(ppi_x, ppi_y)
 
+    # Initialize scene view
+    scene_view = SceneView(size=PPI_SIZE)
+    scene_x = PPI_SIZE + 20
+    scene_y = ppi_y
+
     # Initialize control panel
     control_panel = ControlPanel(
-        x=PPI_SIZE + 20,
+        x=PPI_SIZE * 2 + 30,
         y=20,
-        width=WINDOW_WIDTH - PPI_SIZE - 40,
+        width=WINDOW_WIDTH - PPI_SIZE * 2 - 50,
         height=WINDOW_HEIGHT - 40
     )
     control_panel.set_simulation(sim)
@@ -123,6 +129,7 @@ def main():
             control_panel.handle_event(event)
 
         # CSV playback mode or normal simulation
+        sweep_pairs = None
         if control_panel.csv_player and control_panel.csv_player.active:
             sweep_pairs = control_panel.csv_player.get_next_sweeps()
             for bearing, data in sweep_pairs:
@@ -152,6 +159,16 @@ def main():
         # Draw PPI
         ppi_surface = ppi.render()
         screen.blit(ppi_surface, (ppi_x, ppi_y))
+
+        # Draw scene view
+        if sweep_pairs is not None:
+            scene_surface = scene_view.render_csv(
+                sweep_pairs, sim.radar.params.current_range_nm)
+        else:
+            scene_surface = scene_view.render(
+                sim.world.own_ship, sim.world.vessels,
+                sim.coastlines, sim.radar.params.current_range_nm)
+        screen.blit(scene_surface, (scene_x, scene_y))
 
         # Draw cursor info below PPI
         ppi.draw_cursor_info(screen, ppi_x, ppi_y + PPI_SIZE + 5)
