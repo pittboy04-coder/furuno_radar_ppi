@@ -21,7 +21,7 @@ def main():
     pygame.init()
     pygame.display.set_caption("Furuno Radar PPI Simulator")
 
-    screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+    screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
     clock = pygame.time.Clock()
 
     # Initialize simulation
@@ -44,24 +44,40 @@ def main():
         sim.weather
     )
 
+    # Layout calculation
+    CONTROL_PANEL_WIDTH = 340
+    MIN_PPI_SIZE = 300
+
+    def calc_layout(win_w, win_h):
+        """Calculate display sizes and positions from window dimensions."""
+        # PPI and scene view share the space left of the control panel
+        available = win_w - CONTROL_PANEL_WIDTH - 30  # margins
+        display_size = min(win_h - 40, (available - 20) // 2)
+        display_size = max(MIN_PPI_SIZE, display_size)
+        px = 10
+        py = (win_h - display_size) // 2
+        sx = display_size + 20
+        sy = py
+        cp_x = display_size * 2 + 30
+        cp_w = win_w - cp_x - 10
+        return display_size, px, py, sx, sy, cp_x, cp_w, win_h - 40
+
+    display_size, ppi_x, ppi_y, scene_x, scene_y, cp_x, cp_w, cp_h = calc_layout(WINDOW_WIDTH, WINDOW_HEIGHT)
+
     # Initialize PPI display
-    ppi = PPIDisplay(size=PPI_SIZE)
+    ppi = PPIDisplay(size=display_size)
     ppi.initialize()
-    ppi_x = 10
-    ppi_y = (WINDOW_HEIGHT - PPI_SIZE) // 2
     ppi.set_ppi_offset(ppi_x, ppi_y)
 
     # Initialize scene view
-    scene_view = SceneView(size=PPI_SIZE)
-    scene_x = PPI_SIZE + 20
-    scene_y = ppi_y
+    scene_view = SceneView(size=display_size)
 
     # Initialize control panel
     control_panel = ControlPanel(
-        x=PPI_SIZE * 2 + 30,
+        x=cp_x,
         y=20,
-        width=WINDOW_WIDTH - PPI_SIZE * 2 - 50,
-        height=WINDOW_HEIGHT - 40
+        width=cp_w,
+        height=cp_h
     )
     control_panel.set_simulation(sim)
     control_panel.set_scenario_manager(scenario_manager)
@@ -109,6 +125,18 @@ def main():
                     # Export current sweep
                     filepath = sim.export_current_sweep(current_bearing)
                     print(f"Sweep exported to: {filepath}")
+
+            elif event.type == pygame.VIDEORESIZE:
+                win_w, win_h = event.w, event.h
+                screen = pygame.display.set_mode((win_w, win_h), pygame.RESIZABLE)
+                display_size, ppi_x, ppi_y, scene_x, scene_y, cp_x, cp_w, cp_h = calc_layout(win_w, win_h)
+                ppi = PPIDisplay(size=display_size)
+                ppi.initialize()
+                ppi.set_ppi_offset(ppi_x, ppi_y)
+                scene_view = SceneView(size=display_size)
+                control_panel = ControlPanel(x=cp_x, y=20, width=cp_w, height=cp_h)
+                control_panel.set_simulation(sim)
+                control_panel.set_scenario_manager(scenario_manager)
 
             elif event.type == pygame.MOUSEMOTION:
                 # Track cursor position for PPI
