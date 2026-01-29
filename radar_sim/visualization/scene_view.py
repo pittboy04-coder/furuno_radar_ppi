@@ -81,7 +81,7 @@ class SceneView:
 
         # Draw vessels
         if vessels:
-            for vessel in vessels:
+            for vessel in (vessels.values() if isinstance(vessels, dict) else vessels):
                 if not vessel.is_active:
                     continue
                 if vessel is own_ship:

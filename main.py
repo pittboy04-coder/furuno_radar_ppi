@@ -166,7 +166,7 @@ def main():
                 sweep_pairs, sim.radar.params.current_range_nm)
         else:
             scene_surface = scene_view.render(
-                sim.world.own_ship, sim.world.vessels,
+                sim.world.own_ship, sim.world.get_all_vessels(),
                 sim.coastlines, sim.radar.params.current_range_nm)
         screen.blit(scene_surface, (scene_x, scene_y))
 
