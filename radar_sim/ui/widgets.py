@@ -312,6 +312,81 @@ class DropDown(Widget):
                 surface.blit(text_surface, (opt_rect.x + 5, opt_rect.y + 5))
 
 
+class TextInput(Widget):
+    """Text input field widget."""
+
+    def __init__(self, x: int, y: int, width: int, height: int = 25,
+                 text: str = "", label: str = "",
+                 callback: Callable[[str], None] = None):
+        super().__init__(x, y, width, height)
+        self.text = text
+        self.label = label
+        self.callback = callback
+        self.font = pygame.font.Font(None, 20)
+        self.active = False
+        self.cursor_visible = True
+        self.cursor_timer = 0
+
+    def handle_event(self, event: pygame.event.Event) -> bool:
+        if not self.visible or not self.enabled:
+            return False
+
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            was_active = self.active
+            self.active = self.rect.collidepoint(event.pos)
+            if self.active:
+                return True
+            if was_active and not self.active:
+                # Lost focus — submit
+                if self.callback:
+                    self.callback(self.text)
+                return True
+
+        if not self.active:
+            return False
+
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_RETURN:
+                self.active = False
+                if self.callback:
+                    self.callback(self.text)
+                return True
+            elif event.key == pygame.K_BACKSPACE:
+                self.text = self.text[:-1]
+                return True
+            elif event.key == pygame.K_ESCAPE:
+                self.active = False
+                return True
+            elif event.unicode and event.unicode.isprintable():
+                self.text += event.unicode
+                return True
+
+        return False
+
+    def draw(self, surface: pygame.Surface) -> None:
+        if not self.visible:
+            return
+
+        if self.label:
+            label_surface = self.font.render(self.label, True, COLORS['text_dim'])
+            surface.blit(label_surface, (self.rect.x, self.rect.y - 15))
+
+        border_color = COLORS['highlight'] if self.active else COLORS['border']
+        pygame.draw.rect(surface, COLORS['button'], self.rect)
+        pygame.draw.rect(surface, border_color, self.rect, 1)
+
+        text_surface = self.font.render(self.text, True, COLORS['text'])
+        surface.blit(text_surface, (self.rect.x + 5, self.rect.y + 5))
+
+        # Blinking cursor
+        if self.active:
+            self.cursor_timer = (self.cursor_timer + 1) % 60
+            if self.cursor_timer < 30:
+                cx = self.rect.x + 5 + text_surface.get_width() + 2
+                pygame.draw.line(surface, COLORS['highlight'],
+                                 (cx, self.rect.y + 4), (cx, self.rect.bottom - 4))
+
+
 class Panel(Widget):
     """Container panel for grouping widgets."""
 

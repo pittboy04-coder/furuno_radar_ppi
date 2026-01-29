@@ -1,7 +1,7 @@
 """Main control panel for the radar simulator."""
 import pygame
 from typing import Optional, List
-from .widgets import Panel, Button, Slider, Label, DropDown, COLORS
+from .widgets import Panel, Button, Slider, Label, DropDown, TextInput, COLORS
 from ..core.simulation import Simulation
 from ..scenarios.scenario_manager import ScenarioManager
 from ..data_import import CsvPlayer
@@ -35,15 +35,22 @@ class ControlPanel:
         y_offset += 90
 
         # Range control panel
-        self.range_panel = Panel(10, y_offset, panel_width, 80, "RANGE")
-        self.range_dropdown = DropDown(
+        self.range_panel = Panel(10, y_offset, panel_width, 110, "RANGE")
+        self.range_input = TextInput(
             15, 35, panel_width - 30, 25,
+            text="6.0",
+            label="Range (nm)",
+            callback=self._on_range_input
+        )
+        self.range_dropdown = DropDown(
+            15, 75, panel_width - 30, 25,
             ["0.25 nm", "0.5 nm", "0.75 nm", "1.5 nm", "3 nm", "6 nm", "12 nm", "24 nm", "48 nm"],
             selected=5,  # Default 6nm
             callback=self._on_range_change
         )
+        self.range_panel.add_widget(self.range_input)
         self.range_panel.add_widget(self.range_dropdown)
-        y_offset += 90
+        y_offset += 120
 
         # Gain controls panel
         self.gain_panel = Panel(10, y_offset, panel_width, 160, "GAIN CONTROLS")
@@ -179,12 +186,23 @@ class ControlPanel:
             )
             self.pause_button.text = "PAUSE"
 
+    def _on_range_input(self, text: str) -> None:
+        """Handle typed range value."""
+        if self.simulation:
+            try:
+                range_nm = float(text.strip().replace('nm', '').strip())
+                if 0.1 <= range_nm <= 200:
+                    self.simulation.radar.params.current_range_nm = range_nm
+            except ValueError:
+                pass
+
     def _on_range_change(self, index: int, value: str) -> None:
         """Handle range scale change."""
         if self.simulation:
             # Parse range from string like "6 nm"
             range_nm = float(value.split()[0])
             self.simulation.radar.set_range_scale(range_nm)
+            self.range_input.text = str(range_nm)
 
     def _on_gain_change(self, value: float) -> None:
         """Handle gain change."""
