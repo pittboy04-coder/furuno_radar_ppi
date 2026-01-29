@@ -31,15 +31,18 @@ class ControlPanel:
         y_offset = 10
 
         # Scenario panel
-        self.scenario_panel = Panel(10, y_offset, panel_width, 80, "SCENARIO")
-        self.scenario_dropdown = DropDown(
-            15, 35, panel_width - 30, 25,
-            ["Default"],  # Will be populated when scenario manager is set
-            selected=0,
-            callback=self._on_scenario_change
+        self.scenario_panel = Panel(10, y_offset, panel_width, 100, "SCENARIO")
+        self._scenario_names = ["Default"]
+        self.scenario_slider = Slider(
+            15, 45, panel_width - 70, 20,
+            min_val=0.0, max_val=0.0, value=0.0,
+            label="SCENARIO",
+            callback=self._on_scenario_slider
         )
-        self.scenario_panel.add_widget(self.scenario_dropdown)
-        y_offset += 90
+        self.scenario_name_label = Label(20, 75, "Default", 18)
+        self.scenario_panel.add_widget(self.scenario_slider)
+        self.scenario_panel.add_widget(self.scenario_name_label)
+        y_offset += 110
 
         # Range control panel
         self.range_panel = Panel(10, y_offset, panel_width, 110, "RANGE")
@@ -179,22 +182,31 @@ class ControlPanel:
         self.simulation = sim
 
     def set_scenario_manager(self, manager: ScenarioManager) -> None:
-        """Connect scenario manager and populate dropdown."""
+        """Connect scenario manager and populate slider."""
         self.scenario_manager = manager
-        scenario_names = manager.get_scenario_names()
-        if scenario_names:
-            self.scenario_dropdown.set_options(scenario_names, selected=0)
+        self._scenario_names = manager.get_scenario_names()
+        if self._scenario_names:
+            self.scenario_slider.max_val = float(len(self._scenario_names) - 1)
+            self.scenario_slider.value = 0.0
+            self.scenario_name_label.set_text(self._scenario_names[0])
 
-    def _on_scenario_change(self, index: int, value: str) -> None:
-        """Handle scenario selection change."""
-        if self.scenario_manager and self.simulation:
-            self.scenario_manager.load_scenario(
-                value,
-                self.simulation.world,
-                self.simulation.radar,
-                self.simulation.weather
-            )
-            self.pause_button.text = "PAUSE"
+    def _on_scenario_slider(self, value: float) -> None:
+        """Handle scenario slider change."""
+        if not self.scenario_manager or not self.simulation:
+            return
+        index = int(round(value))
+        index = max(0, min(index, len(self._scenario_names) - 1))
+        # Snap slider to integer position
+        self.scenario_slider.value = float(index)
+        name = self._scenario_names[index]
+        self.scenario_name_label.set_text(name)
+        self.scenario_manager.load_scenario(
+            name,
+            self.simulation.world,
+            self.simulation.radar,
+            self.simulation.weather
+        )
+        self.pause_button.text = "PAUSE"
 
     def _on_range_input(self, text: str) -> None:
         """Handle typed range value."""
