@@ -27,8 +27,12 @@ def main():
     # Initialize simulation
     sim = Simulation()
 
-    # Set export directory to OneDrive Desktop folder
-    export_dir = r"C:\Users\Noah\OneDrive - Strategy Communications\Desktop\maritime_radar_sim"
+    # Set export directory - platform-specific
+    import platform
+    if platform.system() == 'Windows':
+        export_dir = r"C:\Users\Noah\OneDrive - Strategy Communications\Desktop\maritime_radar_sim"
+    else:
+        export_dir = os.path.expanduser("~/projects/radar-research/Radar Simulator CSV Outputs")
     os.makedirs(export_dir, exist_ok=True)
     sim.exporter.output_dir = export_dir
 
