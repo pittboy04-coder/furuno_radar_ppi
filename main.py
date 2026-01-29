@@ -128,6 +128,8 @@ def main():
 
             elif event.type == pygame.VIDEORESIZE:
                 win_w, win_h = event.w, event.h
+                if win_w < 100 or win_h < 100:
+                    continue
                 screen = pygame.display.set_mode((win_w, win_h), pygame.RESIZABLE)
                 display_size, ppi_x, ppi_y, scene_x, scene_y, cp_x, cp_w, cp_h = calc_layout(win_w, win_h)
                 ppi = PPIDisplay(size=display_size)
@@ -155,6 +157,11 @@ def main():
 
             # Pass events to control panel
             control_panel.handle_event(event)
+
+        # Skip rendering when minimized
+        if pygame.display.get_surface().get_size()[0] == 0:
+            clock.tick(FPS)
+            continue
 
         # CSV playback mode or normal simulation
         sweep_pairs = None
