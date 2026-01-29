@@ -15,6 +15,13 @@ class ControlPanel:
         self.scenario_manager: Optional[ScenarioManager] = None
         self.csv_player: Optional[CsvPlayer] = None
 
+        # Scroll state
+        self.scroll_offset = 0
+        self.max_scroll = 0
+        self.is_scrollbar_dragging = False
+        self.scroll_drag_start_y = 0
+        self.scroll_drag_start_offset = 0
+
         # Create panels
         self._create_panels()
 
@@ -152,6 +159,9 @@ class ControlPanel:
         self.targets_label = Label(20, 55, "Targets: 0", 20)
         self.info_panel.add_widget(self.time_label)
         self.info_panel.add_widget(self.targets_label)
+
+        # Total content height for scrolling
+        self.content_height = y_offset + 80  # include info panel height
 
         # Collect all panels
         self.panels = [
@@ -312,15 +322,50 @@ class ControlPanel:
             else:
                 self.simulation.setup_harbor_coastline()
 
+    def _update_max_scroll(self) -> None:
+        self.max_scroll = max(0, self.content_height - self.rect.height)
+
     def handle_event(self, event: pygame.event.Event) -> bool:
-        """Handle pygame events."""
-        # Temporarily offset all widget positions to match screen coordinates
+        """Handle pygame events with scroll support."""
+        self._update_max_scroll()
+
+        # Scrollbar dragging
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.max_scroll > 0:
+                sb_x = self.rect.x + self.rect.width - 12
+                sb_rect = pygame.Rect(sb_x, self.rect.y, 12, self.rect.height)
+                if sb_rect.collidepoint(event.pos):
+                    self.is_scrollbar_dragging = True
+                    self.scroll_drag_start_y = event.pos[1]
+                    self.scroll_drag_start_offset = self.scroll_offset
+                    return True
+
+        if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            if self.is_scrollbar_dragging:
+                self.is_scrollbar_dragging = False
+                return True
+
+        if event.type == pygame.MOUSEMOTION and self.is_scrollbar_dragging:
+            dy = event.pos[1] - self.scroll_drag_start_y
+            ratio = dy / self.rect.height
+            self.scroll_offset = self.scroll_drag_start_offset + ratio * self.content_height
+            self.scroll_offset = max(0, min(self.max_scroll, self.scroll_offset))
+            return True
+
+        # Mouse wheel scrolling when over control panel
+        if event.type == pygame.MOUSEWHEEL:
+            if self.rect.collidepoint(pygame.mouse.get_pos()):
+                self.scroll_offset -= event.y * 30
+                self.scroll_offset = max(0, min(self.max_scroll, self.scroll_offset))
+                return True
+
+        # Temporarily offset all widget positions to match screen coordinates (with scroll)
         for panel in self.panels:
             panel.rect.x += self.rect.x
-            panel.rect.y += self.rect.y
+            panel.rect.y += self.rect.y - int(self.scroll_offset)
             for widget in panel.widgets:
                 widget.rect.x += self.rect.x
-                widget.rect.y += self.rect.y
+                widget.rect.y += self.rect.y - int(self.scroll_offset)
 
         # Handle events
         handled = False
@@ -332,10 +377,10 @@ class ControlPanel:
         # Restore original positions
         for panel in self.panels:
             panel.rect.x -= self.rect.x
-            panel.rect.y -= self.rect.y
+            panel.rect.y -= self.rect.y - int(self.scroll_offset)
             for widget in panel.widgets:
                 widget.rect.x -= self.rect.x
-                widget.rect.y -= self.rect.y
+                widget.rect.y -= self.rect.y - int(self.scroll_offset)
 
         return handled
 
@@ -360,9 +405,10 @@ class ControlPanel:
             self.coastline_button.text = "COAST ON"
 
     def draw(self, surface: pygame.Surface) -> None:
-        """Draw the control panel."""
+        """Draw the control panel with scroll support."""
         # Update state
         self.update()
+        self._update_max_scroll()
 
         # Draw background
         bg_rect = pygame.Rect(
@@ -371,24 +417,43 @@ class ControlPanel:
         )
         pygame.draw.rect(surface, COLORS['bg'], bg_rect)
 
-        # Draw all panels (offset by control panel position)
+        # Set clipping to control panel area
+        surface.set_clip(self.rect)
+
+        scroll_y = int(self.scroll_offset)
+
+        # Draw all panels (offset by control panel position, adjusted for scroll)
         for panel in self.panels:
-            # Temporarily offset panel position
             original_x = panel.rect.x
             original_y = panel.rect.y
             panel.rect.x += self.rect.x
-            panel.rect.y += self.rect.y
+            panel.rect.y += self.rect.y - scroll_y
 
-            # Offset all child widgets too
             for widget in panel.widgets:
                 widget.rect.x += self.rect.x
-                widget.rect.y += self.rect.y
+                widget.rect.y += self.rect.y - scroll_y
 
             panel.draw(surface)
 
-            # Restore positions
             panel.rect.x = original_x
             panel.rect.y = original_y
             for widget in panel.widgets:
                 widget.rect.x -= self.rect.x
-                widget.rect.y -= self.rect.y
+                widget.rect.y -= self.rect.y - scroll_y
+
+        # Remove clipping
+        surface.set_clip(None)
+
+        # Draw scrollbar if content overflows
+        if self.max_scroll > 0:
+            sb_x = self.rect.x + self.rect.width - 10
+            sb_track = pygame.Rect(sb_x, self.rect.y, 8, self.rect.height)
+            pygame.draw.rect(surface, COLORS['panel'], sb_track)
+
+            # Thumb
+            thumb_ratio = self.rect.height / self.content_height
+            thumb_h = max(20, int(self.rect.height * thumb_ratio))
+            thumb_y = self.rect.y + int((self.rect.height - thumb_h) * self.scroll_offset / self.max_scroll)
+            thumb_rect = pygame.Rect(sb_x, thumb_y, 8, thumb_h)
+            color = COLORS['highlight'] if self.is_scrollbar_dragging else COLORS['slider_knob']
+            pygame.draw.rect(surface, color, thumb_rect, border_radius=4)
